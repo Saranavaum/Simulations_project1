@@ -24,8 +24,7 @@ R_col=(3.*Mass/(4.*np.pi*Rho_col))**(1/3)    # Collapse radio
 numberOfPart = 10000
 # numberOfPart = 1000  # According to the case in which we are
 rMax = R_col
-boxSize = rMax * 2                           # Box size containing the initial sphere of particles
-aleatorias
+boxSize = rMax * 2                           # Box size containing the initial sphere of random particles
 mpart=Mass/numberOfPart
 x = np.zeros(numberOfPart)
 y = np.zeros(numberOfPart)
