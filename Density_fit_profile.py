@@ -37,7 +37,7 @@ dist=np.array(dist)
 
 # We generate shell spherical from the center to the last external particle and calculate the number of particles contained in that shell volume
 shellNumber = 100                               # Number of shell we want
-shellWidth = np.mean(dist) / shellNumber        # Tamaño de cada corteza [Kpc]
+shellWidth = np.mean(dist) / shellNumber        # Size of each shell [Kpc]
 shellDensity = np.array([])                     # Density [M_sol/kpc**3]
 shellRadius = np.array([])                      # Radius [Kpc]
 Mtot= 1e11                                      # Total mass [M_sol]
@@ -53,20 +53,20 @@ for i in range(shellNumber):
 	shellDensity = np.append(shellDensity, (massOfParticles)/((4./3)*np.pi*(((i+1)*shellWidth)**3 - (i*shellWidth)**3)))
 
 
-#fit del NFW
+# Fitting NFW
 def NFW(r,rho_0,R_s):
 	rho=rho_0/(r/R_s*(1+r/R_s)**2)
 	return(rho)
 
 
-sigma1=1/(shellRadius)
+sigma1=1/(shellRadius) # We weigh with more error the values furthest from the center
 param1,cov1=curve_fit(NFW, shellRadius, shellDensity, p0=[5,30],sigma=sigma1, maxfev=50000)
 fitNFW=NFW(shellRadius,param1[0],param1[1])
 print(param1[0],param1[1])
+print(np.sqrt(np.diag(cov1))) # errors
 
 
-
-#general double-power law model
+# Fitting general double-power law model
 def GDPL(r,rho_s,R_s,alpha,beta,gamma):
 	rho=rho_s/( (r/R_s)**gamma*((1+r/R_s)**alpha)**((beta-gamma)/alpha) )
 	return(rho)
@@ -76,11 +76,10 @@ def GDPL(r,rho_s,R_s,alpha,beta,gamma):
 param,cov=curve_fit(GDPL, shellRadius, shellDensity, p0=[100000,30,1,3,1],sigma=sigma1,maxfev=50000,bounds=[0,[1e10,100,4,5,4]])
 
 print(param[0],param[1],param[2],param[3],param[4])
-print(np.sqrt(np.diag(cov)))
-print(np.sqrt(np.diag(cov1)))
+print(np.sqrt(np.diag(cov))) #errors of each parameter
 
 
-
+# Plotting the profiles
 textstr = '\n'.join((
 	r'   NFW profile',
 	r'--------------------',
