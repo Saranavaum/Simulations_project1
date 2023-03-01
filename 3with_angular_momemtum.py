@@ -1,1 +1,141 @@
+# load libraries
+import h5py
+import numpy as np
+import matplotlib . pyplot as plt
+from mpl_toolkits import mplot3d
+from scipy . optimize import curve_fit
+import random
 
+#---- Initial condition parameters ----#
+
+Mass = 1e11
+G=4.3*10**(-6)                               #kpc*(km/s)²/M_sun
+H_o=70*10**(-3)                              #(km/s²)/kpc
+God_m=0.26                                   # Matter density of the universe
+God_l=1-God_m                                # Dark energy
+Z_init=15                                    # Initial redshift
+Z_col=4                                      # Colapse redshift 
+A_init=1./(1.+Z_init)                        # Initial expansion factor
+A_col=1./(1.+Z_col)                          # Colapse expansion factor
+Rho_crit=3.0*(H_o**2)/(8.0*np.pi*G)          # Average density of the Universe according to the Friedmann equations
+H_init=H_o*((God_m/A_init**3)-God_l)**(1/2)  # Hubble constant to initial redshift
+Rho_crit_init=3.0*(H_init**2)/(8.0*np.pi*G)  # Initial average density of the Universe according to the Friedmann equations
+Lambda_init=1.686*A_init/A_col               # Overdensity needed to collapse
+Rho_col=Rho_crit_init*(Lambda_init+1) 
+R_col=(3.*Mass/(4.*np.pi*Rho_col))**(1/3)    # Collapse radio
+
+numberOfPart = 10000
+# numberOfPart = 1000  # According to the case in which we are
+rMax = R_col
+boxSize = rMax * 2                           # Box size containing the initial sphere of random particles
+mpart=Mass/numberOfPart
+x = np.zeros(numberOfPart)
+y = np.zeros(numberOfPart)
+z = np.zeros(numberOfPart)
+
+
+# Then we generate random particles that are contained within a Rcol radio sphere
+count = 0
+i = 0
+while count < numberOfPart:
+    xTemp = random.random() * boxSize
+    yTemp = random.random() * boxSize
+    zTemp = random.random() * boxSize
+
+    if (np.sqrt((xTemp - rMax)**2 + (yTemp - rMax)**2 + (zTemp - rMax)**2) < R_col):
+        x[i] = xTemp
+        y[i] = yTemp
+        z[i] = zTemp
+        count += 1
+        i += 1
+
+        
+# Centering the particles
+x=x-np.mean (x)
+y=y-np.mean (y)
+z=z-np.mean (z)        
+        
+        
+#fig = plt.figure()
+#ax = plt.axes(projection='3d')
+#ax.scatter(x,y,z, color = "g", s=0.8)
+#plt.show()
+
+
+
+# We calculate the distance to the center of each particle
+dist=[]
+for i in range(len(x)):
+	r=np.sqrt(x[i]**2+y[i]**2+y[i]**2)
+	dist.append(r)
+
+dist=np.array(dist)
+
+
+#---- Initial velocities ----#
+
+H = H_init *(1. - Lambda_init /3) # [km/s/ kpc]
+Hubbleflow_x = H*x
+Hubbleflow_y = H*y
+Hubbleflow_z = H*z
+vx = Hubbleflow_x
+vy = Hubbleflow_y
+vz = Hubbleflow_z
+
+
+#---- Angular mometum ----#
+
+Delta_c=101
+R_vir = (2*G*Mass/(Delta_c*H_0**2))**(1/3)      # Virial radius
+spin = 0.04                                     # Spin of the halo
+V_vir = np.sqrt((G*Mass)/(R_vir))               # Virial velocity [km/s]
+J = np.sqrt(2)*spin*Mass*V_vir*R_vir            # Total angular momentum
+omega = J/(sum(dist**2)*mpart)                  # Angular velocity
+v_rot = omega*dist                              # Rotation velocity [km/s]
+
+
+#---- Rotation velocity [km/s] ----#
+# Degeneration has been taken into account in the cross axes that general the signs
+theta = np.arctan(y/x)
+v_rot_x = (x/abs(x))*np.sin(theta)*v_rot
+v_rot_y = (-x/abs(x))*np.cos(theta)*v_rot
+
+
+#---- Total velocities [km/s] ----#
+
+vx=vx+v_rot_x
+vy=vy+v_rot_y
+vz=vz
+
+
+#-- Generation of HDF5 with the initial conditions established --#
+
+hf = h5py.File("myInitialConditionsvel.hdf5", 'w')
+mass=np.zeros(3)
+mass[1]=mpart
+number_part=np.zeros(3)
+number_part[1]=numberOfPart
+
+header = hf.create_group('Header')
+header.attrs['NumPart_ThisFile']    = number_part
+header.attrs['MassTable']           = mass
+header.attrs['Time']                = 0
+header.attrs['Redshift']            = 15
+header.attrs['NumPart_Total']       = number_part
+header.attrs['NumFilesPerSnapshot'] = 1
+header.attrs['BoxSize']             = 0.0
+header.attrs['Omega0']              = 1.0
+header.attrs['OmegaLambdda']        = 0.
+header.attrs['HubbleParam']         = 0.7
+header.attrs['Flag_Entropy_ICs']    = 0
+header.attrs['NumPart_Total_HighWord'] = np.zeros(3)
+
+g2 = hf.create_group('Parameters')
+
+g3 = hf.create_group('PartType1')
+g3.create_dataset("Coordinates", data = np.vstack([x, y, z]).T)
+g3.create_dataset("Velocities", data = np.vstack([vx, vy, vz]).T)
+ids_d=np.arange(numberOfPart)
+g3.create_dataset("ParticleIDs",(numberOfPart, ),dtype='f',data=ids_d)
+
+hf.close()
